@@ -1,0 +1,96 @@
+version: "3.8"
+
+services:
+  # Database service
+  database:
+    image: postgres:14-alpine
+    container_name: mikan-database
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-mikan}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # API service - using pre-built image
+  api:
+    image: 624622221797.dkr.ecr.us-east-1.amazonaws.com/mikan-api:${IMAGE_TAG:-latest}
+    container_name: mikan-api
+    restart: always
+    platform: ${PLATFORM:-linux/amd64}
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_HOST=database
+      - DATABASE_USERNAME=${POSTGRES_USER:-postgres}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - DATABASE_NAME=${POSTGRES_DB:-mikan}
+      - DATABASE_SSL=${DATABASE_SSL:-false}
+      - PORT=${PORT:-3333}
+      - CONFLUENT_MANAGEMENT_API_KEY=${CONFLUENT_MANAGEMENT_API_KEY}
+      - CONFLUENT_MANAGEMENT_API_SECRET=${CONFLUENT_MANAGEMENT_API_SECRET}
+      - CONFLUENT_OWNER_ID=${CONFLUENT_OWNER_ID}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      # - NODE_EXTRA_CA_CERTS=/etc/zscaler/zscaler-ca.pem
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+
+    ports:
+      - "${PORT:-3333}:${PORT:-3333}"
+    volumes:
+      - ${DATA_FOLDER:-./data}:/data
+      # - ${NODE_EXTRA_CA_CERTS}:/etc/zscaler/zscaler-ca.pem
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${PORT:-3333}/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Frontend App service - using pre-built image
+  app:
+    image: 624622221797.dkr.ecr.us-east-1.amazonaws.com/mikan-app:${IMAGE_TAG:-latest}
+    container_name: mikan-app
+    restart: always
+    platform: ${PLATFORM:-linux/amd64}
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL}
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+  # cron service
+  cron:
+    image: 624622221797.dkr.ecr.us-east-1.amazonaws.com/mikan-cron:${IMAGE_TAG:-latest}
+    container_name: mikan-cron
+    restart: always
+    platform: ${PLATFORM:-linux/amd64}
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # Consumer offset collection configuration
+      - API_ENDPOINT=${API_ENDPOINT:-http://api:3333}
+      - KAFKA_CONSUMER_GROUPS_SCRIPT=${KAFKA_CONSUMER_GROUPS_SCRIPT:-/usr/bin/kafka-consumer-groups}
+      - CONSUMER_OFFSETS_SCRIPT=${CONSUMER_OFFSETS_SCRIPT:-/app/consumer-offsets.sh}
+      - COLLECTION_INTERVAL=${COLLECTION_INTERVAL:-3600}
+      - CREDENTIALS_DIR=${CREDENTIALS_DIR:-/app/credentials}
+    volumes:
+      # Persist agent credentials across container restarts
+      - cron_credentials:${CREDENTIALS_DIR:-/app/credentials}
+
+volumes:
+  pg_data:
+  cron_credentials:
