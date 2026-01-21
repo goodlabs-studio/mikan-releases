@@ -4,7 +4,33 @@ This document describes how to deploy the Mikan application using Docker Compose
 
 ## Quick Start
 
-### 1. Download Distribution Package
+### Option A: One-Command Installation (Recommended)
+
+Run the following command to automatically download, configure, and start Mikan:
+
+```bash
+curl -o- https://raw.githubusercontent.com/your-org/mikan/main/mikan-distribution/install.sh | bash
+```
+
+The script will:
+
+1. Check prerequisites (Docker, Docker Compose)
+2. Download and extract the distribution package
+3. Prompt for required configuration (Confluent API keys, ECR token)
+4. Generate encryption key automatically
+5. Start all services
+
+**Requirements before running:**
+
+- Docker and Docker Compose installed
+- ECR token (provided by Mikan team)
+- Confluent Cloud API credentials
+
+---
+
+### Option B: Manual Installation
+
+#### 1. Download Distribution Package
 
 **Available Downloads:**
 
@@ -19,7 +45,7 @@ unzip staging.zip
 cd mikan-distribution
 ```
 
-### 2. Configure Environment Variables
+#### 2. Configure Environment Variables
 
 ```bash
 # Copy example file and edit
@@ -40,7 +66,7 @@ vi .env  # Edit required variables (see table below)
 - **ENCRYPTION_KEY**: A 32-character random string to encrypt API credentials in database
 - **CONFLUENT_MANAGEMENT_API_KEY/SECRET**: Create a service account in Confluent Cloud with EnvironmentAdmin and BillingAdmin permissions
 
-### 3. Start Services
+#### 3. Start Services
 
 ```bash
 # Login to ECR (required for pulling private images)
@@ -124,6 +150,39 @@ To get `CONFLUENT_MANAGEMENT_API_KEY` and `CONFLUENT_MANAGEMENT_API_SECRET`:
 2. Generate an API key and secret for this service account with Cloud resource management scope
 3. Use the generated key and secret as `CONFLUENT_MANAGEMENT_API_KEY` and `CONFLUENT_MANAGEMENT_API_SECRET`
 4. For each cluster, generate an API key with Kafka cluster resource scope. Save these credentials and register them in the Mikan app's API Keys page
+
+### Obtaining MongoDB Atlas API Credentials
+
+To collect billing data from MongoDB Atlas, you need to create API credentials for each organization.
+
+#### Step 1: Get Organization ID
+
+1. Go to [cloud.mongodb.com](https://cloud.mongodb.com)
+2. Select your organization from the organization selector
+3. The Organization ID is in the URL after `/org/`:
+   ```
+   https://cloud.mongodb.com/v2#/org/67c9cffa530932749e175023/projects
+                                    └─────────────────────────┘
+                                         Organization ID
+   ```
+
+#### Step 2: Create Service Account
+
+1. After selecting the organization, navigate to **Access Manager** > **Applications**
+2. Click **Create Service Account**
+3. Enter a name for the service account (e.g., `mikan-billing`)
+4. Add the **Organization Billing Viewer**, **Organization Member** permission
+5. Click **Create**
+
+#### Step 3: Generate API Credentials
+
+1. After creating the service account, you'll see the **Client ID** and **Client Secret**
+2. **Important:** Copy the Client Secret immediately - it won't be shown again
+3. Register these credentials in the Mikan app:
+   - Go to **MongoDB** > **Organizations** page
+   - Add your organization with the Client ID and Client Secret
+
+**Note:** Repeat these steps for each MongoDB Atlas organization you want to collect billing data from.
 
 ## Running Services
 
