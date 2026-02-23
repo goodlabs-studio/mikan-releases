@@ -9,7 +9,7 @@ This document describes how to deploy the Mikan application using Docker Compose
 Run the following command to automatically download, configure, and start Mikan:
 
 ```bash
-curl -o- https://raw.githubusercontent.com/goodlabs-studio/mikan-releases/main/install.sh | bash
+curl -o- https://raw.githubusercontent.com/goodlabs-studio/mikan-releases/main/docker/install.sh | bash
 ```
 
 The script will:

@@ -1,9 +1,20 @@
-# Mikan Helm Chart - EKS Deployment Guide
+# Mikan Helm Chart - Kubernetes Deployment Guide
+
+Deploy Mikan on any Kubernetes cluster (EKS, GKE, AKS, k3s, minikube, etc.).
 
 ## Prerequisites
 
-- EKS cluster with `kubectl` access configured
+- Kubernetes cluster with `kubectl` access configured
 - Helm 3.x installed
+
+## Quick Start
+
+```bash
+mkdir mikan-installer && cd mikan-installer
+curl -LO https://raw.githubusercontent.com/goodlabs-studio/mikan-releases/main/kubernetes/install.sh
+chmod +x install.sh
+./install.sh
+```
 
 ## Installation
 
@@ -24,7 +35,7 @@ The answers are saved to `.env` for future use.
 
 The installer will ask you to:
 - **Namespace** - Kubernetes namespace to deploy into (default: `mikan`)
-- **Access method** - ALB Ingress (coming soon) or port-forward
+- **Access method** - Ingress or port-forward
 
 ### 3. Review and run the generated command
 
