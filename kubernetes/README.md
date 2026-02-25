@@ -6,6 +6,16 @@ Deploy Mikan on any Kubernetes cluster (EKS, GKE, AKS, k3s, minikube, etc.).
 
 - Kubernetes cluster with `kubectl` access configured
 - Helm 3.x installed
+- AWS CLI installed (for ECR login)
+- [Confluent Cloud API credentials](../README.md#confluent-cloud-api-credentials)
+
+### ECR Login
+
+The Helm chart is hosted on AWS ECR. You must authenticate before pulling the chart.
+
+```bash
+aws ecr-public get-login-password --region us-east-1 | helm registry login --username AWS --password-stdin public.ecr.aws
+```
 
 ## Quick Start
 
@@ -20,9 +30,9 @@ chmod +x install.sh
 
 ### 1. Run the installer
 
-```bash
+````bash
 ./install.sh
-```
+```ㅔ
 
 If no `.env` file exists, the installer will interactively prompt you for:
 - Database connection details (host, port, username, password, etc.)
@@ -45,7 +55,7 @@ You can also specify a custom env file path:
 
 ```bash
 ./install.sh /path/to/my.env
-```
+````
 
 ### 4. Verify
 
@@ -68,10 +78,10 @@ After the first deployment, log in with:
 
 ### Global
 
-| Parameter              | Description                | Default                    |
-| ---------------------- | -------------------------- | -------------------------- |
-| `fullnameOverride`     | Override release name      | (release name)             |
-| `global.imageTag`      | Container image tag        | `latest`                   |
+| Parameter          | Description           | Default        |
+| ------------------ | --------------------- | -------------- |
+| `fullnameOverride` | Override release name | (release name) |
+| `global.imageTag`  | Container image tag   | `latest`       |
 
 ### Database
 
