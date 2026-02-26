@@ -189,10 +189,8 @@ ENV_CHOICE="${ENV_CHOICE:-1}"
 
 if [ "$ENV_CHOICE" = "2" ]; then
   DEPLOY_ENV="production"
-  VALUES_FILE="$SCRIPT_DIR/mikan/values-production.yaml"
 else
   DEPLOY_ENV="staging"
-  VALUES_FILE="$SCRIPT_DIR/mikan/values-staging.yaml"
 fi
 
 echo "Using environment: $DEPLOY_ENV"
@@ -209,6 +207,23 @@ else
 fi
 RELEASE_NAME="${RELEASE_NAME:-mikan}"
 
+# --- Pull chart and extract values file ---
+CHART_DIR="$SCRIPT_DIR/.chart-cache"
+echo ""
+echo "Pulling Helm chart..."
+rm -rf "$CHART_DIR"
+mkdir -p "$CHART_DIR"
+helm pull "$CHART_REF" --untar --untardir "$CHART_DIR" 2>/dev/null
+VALUES_FILE="$CHART_DIR/mikan/values-${DEPLOY_ENV}.yaml"
+if [ ! -f "$VALUES_FILE" ]; then
+  echo "  [WARN] values-${DEPLOY_ENV}.yaml not found in chart, using default values.yaml"
+  VALUES_FILE="$CHART_DIR/mikan/values.yaml"
+fi
+if [ ! -f "$VALUES_FILE" ]; then
+  echo "  [WARN] No values file found in chart, proceeding without -f"
+  VALUES_FILE=""
+fi
+
 # --- Interactive: Namespace ---
 echo ""
 echo "=== Mikan Helm Chart Installer ==="
@@ -220,34 +235,34 @@ NAMESPACE="${NAMESPACE:-$DEFAULT_NS}"
 # --- Build helm command ---
 ARGS=()
 ARGS+=("-n $NAMESPACE --create-namespace")
-ARGS+=("--set fullnameOverride=\"$RELEASE_NAME\"")
-ARGS+=("--set global.imageTag=\"$IMAGE_TAG\"")
+ARGS+=("--set fullnameOverride='$RELEASE_NAME'")
+ARGS+=("--set global.imageTag='$IMAGE_TAG'")
 ARGS+=("--set database.external=true")
-ARGS+=("--set database.host=\"$DATABASE_HOST\"")
-ARGS+=("--set database.port=\"$DATABASE_PORT\"")
-ARGS+=("--set database.username=\"$DATABASE_USERNAME\"")
-ARGS+=("--set database.password=\"$DATABASE_PASSWORD\"")
-ARGS+=("--set database.name=\"$DATABASE_NAME\"")
-ARGS+=("--set database.ssl=\"$DATABASE_SSL\"")
-ARGS+=("--set api.confluent.apiKey=\"$CONFLUENT_API_KEY\"")
-ARGS+=("--set api.confluent.apiSecret=\"$CONFLUENT_API_SECRET\"")
-ARGS+=("--set api.encryptionKey=\"$ENCRYPTION_KEY\"")
-ARGS+=("--set api.env.CORS_ALLOWED_ORIGINS=\"$CORS_ALLOWED_ORIGINS\"")
-ARGS+=("--set app.env.VITE_API_URL=\"$VITE_API_URL\"")
+ARGS+=("--set database.host='$DATABASE_HOST'")
+ARGS+=("--set database.port='$DATABASE_PORT'")
+ARGS+=("--set database.username='$DATABASE_USERNAME'")
+ARGS+=("--set database.password='$DATABASE_PASSWORD'")
+ARGS+=("--set database.name='$DATABASE_NAME'")
+ARGS+=("--set database.ssl='$DATABASE_SSL'")
+ARGS+=("--set api.confluent.apiKey='$CONFLUENT_API_KEY'")
+ARGS+=("--set api.confluent.apiSecret='$CONFLUENT_API_SECRET'")
+ARGS+=("--set api.encryptionKey='$ENCRYPTION_KEY'")
+ARGS+=("--set api.env.CORS_ALLOWED_ORIGINS='$CORS_ALLOWED_ORIGINS'")
+ARGS+=("--set app.env.VITE_API_URL='$VITE_API_URL'")
 
 # Ingress
 if [ "${INGRESS_ENABLED:-false}" = "true" ]; then
   ARGS+=("--set ingress.enabled=true")
   ARGS+=("--set ingress.className=alb")
   if [ -n "$INGRESS_HOST" ]; then
-    ARGS+=("--set ingress.host=\"$INGRESS_HOST\"")
+    ARGS+=("--set ingress.host='$INGRESS_HOST'")
   fi
 fi
 
 if [ -n "$AZURE_CLIENT_ID" ]; then
-  ARGS+=("--set api.azure.clientId=\"$AZURE_CLIENT_ID\"")
-  ARGS+=("--set api.azure.clientSecret=\"$AZURE_CLIENT_SECRET\"")
-  ARGS+=("--set api.azure.tenantId=\"$AZURE_TENANT_ID\"")
+  ARGS+=("--set api.azure.clientId='$AZURE_CLIENT_ID'")
+  ARGS+=("--set api.azure.clientSecret='$AZURE_CLIENT_SECRET'")
+  ARGS+=("--set api.azure.tenantId='$AZURE_TENANT_ID'")
 fi
 
 # --- Print command ---
@@ -255,7 +270,11 @@ echo ""
 echo "# Generated helm command from: $ENV_FILE"
 echo "# Review and run:"
 echo ""
-echo -n "helm upgrade --install $RELEASE_NAME $CHART_REF -f $VALUES_FILE"
+if [ -n "$VALUES_FILE" ]; then
+  echo -n "helm upgrade --install $RELEASE_NAME $CHART_REF -f $VALUES_FILE"
+else
+  echo -n "helm upgrade --install $RELEASE_NAME $CHART_REF"
+fi
 for arg in "${ARGS[@]}"; do
   echo " \\"
   echo -n "  $arg"
