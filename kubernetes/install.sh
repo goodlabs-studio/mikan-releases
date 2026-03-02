@@ -177,21 +177,8 @@ set -a
 source "$ENV_FILE"
 set +a
 
-# --- Interactive: Environment ---
-echo ""
-echo "Select deployment environment:"
-echo ""
-echo "  1) Staging"
-echo "  2) Production"
-echo ""
-read -rp "Select [1/2] (default: 1): " ENV_CHOICE
-ENV_CHOICE="${ENV_CHOICE:-1}"
-
-if [ "$ENV_CHOICE" = "2" ]; then
-  DEPLOY_ENV="production"
-else
-  DEPLOY_ENV="staging"
-fi
+# --- Environment ---
+DEPLOY_ENV="production"
 
 echo "Using environment: $DEPLOY_ENV"
 
