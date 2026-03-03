@@ -90,12 +90,12 @@ helm uninstall mikan -n mikan-staging
 
 The installer configures AWS ALB Ingress when you enable Ingress during setup. You can modify the following values in your `.env` file after installation:
 
-| Parameter             | Description                                        | Default           |
-| --------------------- | -------------------------------------------------- | ----------------- |
-| `INGRESS_ENABLED`     | Enable Ingress                                     | `true`            |
-| `INGRESS_SCHEME`      | `internet-facing` (public) or `internal` (private) | `internet-facing` |
-| `INGRESS_HOST`        | Domain name (e.g., `mikan.example.com`)            | `""`              |
-| `ACM_CERTIFICATE_ARN` | ACM certificate ARN for HTTPS                      | `""`              |
+| Parameter | Description | Default |
+| --- | --- | --- |
+| `INGRESS_ENABLED` | Enable Ingress | `true` |
+| `INGRESS_SCHEME` | `internet-facing` (public) or `internal` (private) | `internet-facing` |
+| `INGRESS_HOST` | Domain name (e.g., `mikan.example.com`) | `""` |
+| `ACM_CERTIFICATE_ARN` | ACM certificate ARN for HTTPS | `""` |
 
 Re-run `./install.sh` after making changes.
 
@@ -107,19 +107,17 @@ kubectl get ingress -n mikan-staging
 
 ### Port forwarding (no Ingress)
 
-If you don't have an Ingress configured, you can access the services via `kubectl port-forward`:
+If you don't have an Ingress configured, you can access the services via `kubectl port-forward`.
+
+> **Important:** Both the API and App port-forwards are required. Without the API forward, authentication will fail. The installer automatically sets `VITE_API_URL=http://localhost:3333/graphql` when Ingress is disabled. If you initially set up with Ingress and later switch to port-forwarding, update `VITE_API_URL` in your `.env` file to `http://localhost:3333/graphql` and re-run `./install.sh`.
 
 ```bash
-# Terminal 1: API
-kubectl port-forward svc/mikan-api 3333:3333 -n mikan-staging
-
-# Terminal 2: App
-kubectl port-forward svc/mikan-app 3000:3000 -n mikan-staging
+# Start both port-forwards (both are required):
+kubectl port-forward svc/mikan-api 3333:3333 -n mikan-staging &
+kubectl port-forward svc/mikan-app 3000:3000 -n mikan-staging &
 ```
 
 Then open `http://localhost:3000` in your browser.
-
-> **Note:** Make sure `VITE_API_URL` is set to `http://localhost:3333/graphql` when using port-forward.
 
 ### View logs
 

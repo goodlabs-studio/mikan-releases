@@ -24,15 +24,16 @@ ecr_login() {
 
   while true; do
     while [ -z "$ECR_TOKEN" ]; do
-      if command -v stty &> /dev/null; then
-        stty -icanon 2>/dev/null || true
-      fi
       echo -n "  Enter ECR Token: "
-      ECR_TOKEN=$(head -n 1)
-      if command -v stty &> /dev/null; then
-        stty icanon 2>/dev/null || true
+      # Disable canonical mode to bypass terminal line buffer limit (~1024 on macOS)
+      OLD_STTY=$(stty -g 2>/dev/null) || true
+      stty -icanon 2>/dev/null || true
+      IFS= read -r ECR_TOKEN
+      # Restore terminal settings
+      if [ -n "$OLD_STTY" ]; then
+        stty "$OLD_STTY" 2>/dev/null || true
       fi
-      ECR_TOKEN=$(echo "$ECR_TOKEN" | tr -d '\n\r ')
+      ECR_TOKEN=$(printf '%s' "$ECR_TOKEN" | tr -d '\n\r\t ')
       if [ -z "$ECR_TOKEN" ]; then
         echo "  [ERROR] ECR Token is required."
       fi
@@ -58,6 +59,22 @@ ecr_login() {
 }
 
 ecr_login
+
+# --- Create imagePullSecret for Kubernetes nodes ---
+create_ecr_pull_secret() {
+  local ns="$1"
+  ECR_PULL_SECRET_NAME="ecr-registry-secret"
+  echo "Creating imagePullSecret '$ECR_PULL_SECRET_NAME' in namespace '$ns'..."
+  kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null
+  kubectl create secret docker-registry "$ECR_PULL_SECRET_NAME" \
+    --docker-server="$ECR_REGISTRY" \
+    --docker-username=AWS \
+    --docker-password="$ECR_TOKEN" \
+    -n "$ns" \
+    --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null
+  echo "  [OK] imagePullSecret created"
+  echo ""
+}
 
 # --- Create .env if it doesn't exist ---
 if [ ! -f "$ENV_FILE" ]; then
@@ -219,11 +236,15 @@ DEFAULT_NS="mikan-${DEPLOY_ENV}"
 read -rp "Kubernetes namespace (default: $DEFAULT_NS): " NAMESPACE
 NAMESPACE="${NAMESPACE:-$DEFAULT_NS}"
 
+# --- Create ECR pull secret in the target namespace ---
+create_ecr_pull_secret "$NAMESPACE"
+
 # --- Build helm command ---
 ARGS=()
 ARGS+=("-n $NAMESPACE --create-namespace")
 ARGS+=("--set fullnameOverride='$RELEASE_NAME'")
 ARGS+=("--set global.imageTag='$IMAGE_TAG'")
+ARGS+=("--set imagePullSecrets[0].name='$ECR_PULL_SECRET_NAME'")
 ARGS+=("--set database.external=true")
 ARGS+=("--set database.host='$DATABASE_HOST'")
 ARGS+=("--set database.port='$DATABASE_PORT'")
@@ -277,10 +298,20 @@ if [ "${INGRESS_ENABLED:-false}" = "true" ]; then
   echo ""
 else
   echo "# --- Access via port-forward ---"
-  echo "# kubectl port-forward svc/$RELEASE_NAME-app 3000:3000 -n $NAMESPACE &"
-  echo "# kubectl port-forward svc/$RELEASE_NAME-api 3333:3333 -n $NAMESPACE &"
+  echo "#"
+  echo "# Start both port-forwards (both are required):"
+  echo "#"
+  echo "#   kubectl port-forward svc/$RELEASE_NAME-api 3333:3333 -n $NAMESPACE &"
+  echo "#   kubectl port-forward svc/$RELEASE_NAME-app 3000:3000 -n $NAMESPACE &"
   echo "#"
   echo "# Then open http://localhost:3000"
+  echo "#"
+  echo "# VITE_API_URL is set to: $VITE_API_URL"
+  if [ "$VITE_API_URL" != "http://localhost:3333/graphql" ]; then
+    echo "#"
+    echo "# ⚠  WARNING: VITE_API_URL should be 'http://localhost:3333/graphql' for port-forward."
+    echo "#    Update VITE_API_URL in $ENV_FILE and re-run ./install.sh"
+  fi
   echo ""
 fi
 
