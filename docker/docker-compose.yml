@@ -20,7 +20,7 @@ services:
 
   # API service - using pre-built image
   api:
-    image: 624622221797.dkr.ecr.us-east-1.amazonaws.com/mikan-api:${IMAGE_TAG:-latest}
+    image: 624622221797.dkr.ecr.us-east-1.amazonaws.com/mikan-production:api-${IMAGE_TAG:-latest}
     container_name: mikan-api
     restart: always
     platform: ${PLATFORM:-linux/amd64}
@@ -58,7 +58,7 @@ services:
 
   # Frontend App service - using pre-built image
   app:
-    image: 624622221797.dkr.ecr.us-east-1.amazonaws.com/mikan-app:${IMAGE_TAG:-latest}
+    image: 624622221797.dkr.ecr.us-east-1.amazonaws.com/mikan-production:web-${IMAGE_TAG:-latest}
     container_name: mikan-app
     restart: always
     platform: ${PLATFORM:-linux/amd64}
@@ -70,7 +70,7 @@ services:
       - '3000:3000'
   # cron service
   cron:
-    image: 624622221797.dkr.ecr.us-east-1.amazonaws.com/mikan-cron:${IMAGE_TAG:-latest}
+    image: 624622221797.dkr.ecr.us-east-1.amazonaws.com/mikan-production:cron-${IMAGE_TAG:-latest}
     container_name: mikan-cron
     restart: always
     platform: ${PLATFORM:-linux/amd64}
