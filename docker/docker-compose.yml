@@ -50,7 +50,14 @@ services:
       - ${DATA_FOLDER:-./data}:/data
       # - ${NODE_EXTRA_CA_CERTS}:/etc/zscaler/zscaler-ca.pem
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${PORT:-3333}/"]
+      test:
+        [
+          'CMD',
+          'wget',
+          '-q',
+          '--spider',
+          'http://localhost:${PORT:-3333}/api/health',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
