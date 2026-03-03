@@ -15,7 +15,7 @@ curl -o- https://raw.githubusercontent.com/goodlabs-studio/mikan-releases/main/d
 The script will:
 
 1. Check prerequisites (Docker, Docker Compose)
-2. Download and extract the distribution package
+2. Download docker-compose.yml from the release repository
 3. Prompt for required configuration (Confluent API keys, ECR token)
 4. Generate encryption key automatically
 5. Start all services
@@ -25,58 +25,6 @@ The script will:
 - Docker and Docker Compose installed
 - ECR token (provided by Mikan team)
 - Confluent Cloud API credentials
-
----
-
-### Option B: Manual Installation
-
-#### 1. Download Distribution Package
-
-**Available Downloads:**
-
-- Latest: `https://mikan-public.s3.amazonaws.com/distribution/latest.zip` (Not available yet)
-- Staging: `https://mikan-public.s3.amazonaws.com/distribution/staging.zip`
-- Specific version: `https://mikan-public.s3.amazonaws.com/distribution/mikan-{version}.zip` (Not available yet)
-
-```bash
-# Download and extract
-curl -O https://mikan-public.s3.amazonaws.com/distribution/staging.zip
-unzip staging.zip
-cd mikan-distribution
-```
-
-#### 2. Configure Environment Variables
-
-```bash
-# Copy example file and edit
-cp .env.example .env
-vi .env  # Edit required variables (see table below)
-```
-
-**Required Variables:**
-
-| Variable                          | Description                       | Required |
-| --------------------------------- | --------------------------------- | -------- |
-| `ENCRYPTION_KEY`                  | 32-character encryption key       | Yes      |
-| `CONFLUENT_MANAGEMENT_API_KEY`    | Confluent Cloud API key           | Yes      |
-| `CONFLUENT_MANAGEMENT_API_SECRET` | Confluent Cloud API secret        | Yes      |
-| `POSTGRES_PASSWORD`               | Database password                 | No       |
-| `IMAGE_TAG`                       | Docker image tag (staging/latest) | No       |
-
-- **ENCRYPTION_KEY**: A 32-character random string to encrypt API credentials in database
-- **CONFLUENT_MANAGEMENT_API_KEY/SECRET**: Create a service account in Confluent Cloud with EnvironmentAdmin and BillingAdmin permissions
-
-#### 3. Start Services
-
-```bash
-# Login to ECR (required for pulling private images)
-# Replace <YOUR_ECR_TOKEN> with the token from generate-ecr-token.sh
-docker login --username AWS --password-stdin 624622221797.dkr.ecr.us-east-1.amazonaws.com <<< <YOUR_ECR_TOKEN>
-
-# Pull images and start all services
-docker compose pull
-docker compose up -d
-```
 
 ---
 
