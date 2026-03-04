@@ -242,35 +242,35 @@ create_ecr_pull_secret "$NAMESPACE"
 # --- Build helm command ---
 ARGS=()
 ARGS+=("-n $NAMESPACE --create-namespace")
-ARGS+=("--set fullnameOverride='$RELEASE_NAME'")
-ARGS+=("--set global.imageTag='$IMAGE_TAG'")
-ARGS+=("--set imagePullSecrets[0].name='$ECR_PULL_SECRET_NAME'")
-ARGS+=("--set database.external=true")
-ARGS+=("--set database.host='$DATABASE_HOST'")
-ARGS+=("--set database.port='$DATABASE_PORT'")
-ARGS+=("--set database.username='$DATABASE_USERNAME'")
-ARGS+=("--set database.password='$DATABASE_PASSWORD'")
-ARGS+=("--set database.name='$DATABASE_NAME'")
-ARGS+=("--set database.ssl='$DATABASE_SSL'")
-ARGS+=("--set api.confluent.apiKey='$CONFLUENT_API_KEY'")
-ARGS+=("--set api.confluent.apiSecret='$CONFLUENT_API_SECRET'")
-ARGS+=("--set api.encryptionKey='$ENCRYPTION_KEY'")
-ARGS+=("--set api.env.CORS_ALLOWED_ORIGINS='$CORS_ALLOWED_ORIGINS'")
-ARGS+=("--set app.env.VITE_API_URL='$VITE_API_URL'")
+ARGS+=("--set 'fullnameOverride=$RELEASE_NAME'")
+ARGS+=("--set 'global.imageTag=$IMAGE_TAG'")
+ARGS+=("--set 'imagePullSecrets[0].name=$ECR_PULL_SECRET_NAME'")
+ARGS+=("--set 'database.external=true'")
+ARGS+=("--set 'database.host=$DATABASE_HOST'")
+ARGS+=("--set 'database.port=$DATABASE_PORT'")
+ARGS+=("--set 'database.username=$DATABASE_USERNAME'")
+ARGS+=("--set 'database.password=$DATABASE_PASSWORD'")
+ARGS+=("--set 'database.name=$DATABASE_NAME'")
+ARGS+=("--set 'database.ssl=$DATABASE_SSL'")
+ARGS+=("--set 'api.confluent.apiKey=$CONFLUENT_API_KEY'")
+ARGS+=("--set 'api.confluent.apiSecret=$CONFLUENT_API_SECRET'")
+ARGS+=("--set 'api.encryptionKey=$ENCRYPTION_KEY'")
+ARGS+=("--set 'api.env.CORS_ALLOWED_ORIGINS=$CORS_ALLOWED_ORIGINS'")
+ARGS+=("--set 'app.env.VITE_API_URL=$VITE_API_URL'")
 
 # Ingress
 if [ "${INGRESS_ENABLED:-false}" = "true" ]; then
-  ARGS+=("--set ingress.enabled=true")
-  ARGS+=("--set ingress.className=alb")
+  ARGS+=("--set 'ingress.enabled=true'")
+  ARGS+=("--set 'ingress.className=alb'")
   if [ -n "$INGRESS_HOST" ]; then
-    ARGS+=("--set ingress.host='$INGRESS_HOST'")
+    ARGS+=("--set 'ingress.host=$INGRESS_HOST'")
   fi
 fi
 
 if [ -n "$AZURE_CLIENT_ID" ]; then
-  ARGS+=("--set api.azure.clientId='$AZURE_CLIENT_ID'")
-  ARGS+=("--set api.azure.clientSecret='$AZURE_CLIENT_SECRET'")
-  ARGS+=("--set api.azure.tenantId='$AZURE_TENANT_ID'")
+  ARGS+=("--set 'api.azure.clientId=$AZURE_CLIENT_ID'")
+  ARGS+=("--set 'api.azure.clientSecret=$AZURE_CLIENT_SECRET'")
+  ARGS+=("--set 'api.azure.tenantId=$AZURE_TENANT_ID'")
 fi
 
 # --- Print command ---
