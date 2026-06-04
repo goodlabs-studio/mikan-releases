@@ -153,7 +153,17 @@ docker compose up -d database api app
 - Skip it at install time when prompted, or
 - Start the stack with `docker compose up -d database api app` after install.
 
-If `cron` is not running, **consumer-offset metrics will not refresh** and any other features that depend on the worker (currently scoped to offsets) will be unavailable. Everything else — chargeback, billing, topic sync, auto-mapping, metrics — runs from the `api` container and is unaffected.
+If `cron` is not running, **consumer-offset metrics will not refresh** and any other features that depend on the worker (currently scoped to offsets) will be unavailable. Everything else — chargeback, billing, topic sync, auto-mapping, metrics, and MongoDB Atlas sync — runs from the `api` container's internal scheduler and is unaffected.
+
+### MongoDB Atlas (optional)
+
+Atlas integration is off by default. To turn it on:
+
+1. Follow the [top-level MongoDB Atlas credentials guide](../README.md#mongodb-atlas-api-credentials-optional) to create a Service Account per Atlas organization.
+2. Either say **yes** to the installer's Atlas prompt, or after install set `mongodb_atlas.enabled = 'true'` via the GraphQL `updateSystemSetting` mutation.
+3. Register each organization's Client ID / Client Secret in the Mikan UI at **MongoDB > Organizations**.
+
+Without step 2 the MongoDB pages in the sidebar stay hidden even if credentials are registered.
 
 ---
 

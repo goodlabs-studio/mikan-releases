@@ -250,6 +250,22 @@ get_user_input() {
         API_ENDPOINT="http://api:3333"
     fi
 
+    # Step 7: MongoDB Atlas integration (optional)
+    echo ""
+    echo "Step 7: MongoDB Atlas Integration (Optional)"
+    echo ""
+    echo "  Atlas integration is disabled by default. Enable it now if you plan"
+    echo "  to register Atlas service-account credentials in the Mikan UI after"
+    echo "  install (MongoDB > Organizations). You can also enable it later via"
+    echo "  the updateSystemSetting GraphQL mutation."
+    echo ""
+    read -p "  Enable MongoDB Atlas integration? [y/N]: " USER_ENABLE_ATLAS
+    if [[ "$USER_ENABLE_ATLAS" =~ ^[Yy]$ ]]; then
+        ENABLE_ATLAS=true
+    else
+        ENABLE_ATLAS=false
+    fi
+
     echo ""
 }
 
@@ -514,6 +530,39 @@ start_services() {
     fi
 }
 
+enable_mongodb_atlas_setting() {
+    # Flip the feature-flag row in system_setting once the database is up.
+    # Done as a separate step (not via env) because the toggle lives in DB.
+    if [ "$ENABLE_ATLAS" != "true" ]; then
+        return 0
+    fi
+
+    echo ""
+    echo "Enabling MongoDB Atlas integration..."
+
+    # Wait for Postgres to accept connections inside the database container.
+    local attempts=0
+    while ! docker compose exec -T database pg_isready -U postgres > /dev/null 2>&1; do
+        attempts=$((attempts + 1))
+        if [ $attempts -gt 30 ]; then
+            print_warn "Database not ready after 60s. Skipping Atlas toggle — you can enable it later via:"
+            echo "  docker compose exec database psql -U postgres -d mikan -c \"UPDATE system_setting SET value='true' WHERE key='mongodb_atlas.enabled';\""
+            return 0
+        fi
+        sleep 2
+    done
+
+    # The row is seeded by migration 1808; flip its value in place.
+    if docker compose exec -T database psql -U postgres -d mikan \
+        -c "UPDATE system_setting SET value = 'true', \"updatedAt\" = NOW() WHERE key = 'mongodb_atlas.enabled';" \
+        > /dev/null 2>&1; then
+        print_ok "MongoDB Atlas integration enabled (system_setting mongodb_atlas.enabled = 'true')"
+    else
+        print_warn "Could not update mongodb_atlas.enabled. Run this manually after install:"
+        echo "  docker compose exec database psql -U postgres -d mikan -c \"UPDATE system_setting SET value='true' WHERE key='mongodb_atlas.enabled';\""
+    fi
+}
+
 print_completion() {
     echo ""
     echo "========================================="
@@ -537,9 +586,22 @@ print_completion() {
     echo ""
     echo "-----------------------------------------"
     echo ""
-    echo "For Confluent charge back cluster API key settings"
-    echo "and MongoDB configuration, please refer to the"
-    echo "DEPLOYMENT.md file in the mikan-distribution folder."
+    echo "Next steps:"
+    echo "  - Register Kafka cluster API keys in the Mikan UI under 'API Keys'."
+    echo "  - (Optional) Register Schema Registry API keys under 'Schema Registry API Keys'"
+    echo "    if you enabled DataDiscoveryRead for topic auto-mapping."
+    if [ "$ENABLE_ATLAS" = "true" ]; then
+        echo "  - Register MongoDB Atlas Service Account credentials under 'MongoDB > Organizations'"
+        echo "    for each Atlas organization you want Mikan to sync."
+    else
+        echo "  - To enable MongoDB Atlas later, run:"
+        echo "      docker compose exec database psql -U postgres -d mikan \\"
+        echo "        -c \"UPDATE system_setting SET value='true' WHERE key='mongodb_atlas.enabled';\""
+        echo "    then register Atlas credentials under 'MongoDB > Organizations'."
+    fi
+    echo ""
+    echo "For full role / credential setup details, see:"
+    echo "  https://github.com/goodlabs-studio/mikan-releases/blob/main/README.md"
     echo ""
 }
 
@@ -552,6 +614,7 @@ main() {
     generate_encryption_key
     create_env_file
     start_services
+    enable_mongodb_atlas_setting
     print_completion
 }
 

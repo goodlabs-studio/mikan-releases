@@ -70,6 +70,55 @@ Required only if you assigned `DataDiscoveryRead` above and want topic auto-mapp
 
 Environments without a registered Schema Registry key simply skip Catalog lookups during topic sync — no errors.
 
+### MongoDB Atlas API Credentials (optional)
+
+Skip this section if you do not run MongoDB Atlas. Atlas integration is **disabled by default** in fresh deploys and has to be enabled explicitly.
+
+Mikan reads Atlas resources and billing using **per-organization OAuth2 service-account credentials**. Each Atlas organization you want Mikan to see needs its own Service Account and gets registered separately in the Mikan UI — there is no single global Atlas key.
+
+**1. Create an Atlas Service Account (per organization)**
+
+For each MongoDB Atlas organization:
+
+1. Go to [cloud.mongodb.com](https://cloud.mongodb.com) and select the organization.
+2. Copy the Organization ID from the URL — it's the segment after `/org/`:
+   ```
+   https://cloud.mongodb.com/v2#/org/67c9cffa530932749e175023/projects
+                                    └─────────── Organization ID ──┘
+   ```
+3. Navigate to **Access Manager > Applications**.
+4. Click **Create Service Account**, name it (e.g. `mikan`), and grant these org-level roles (Mikan only reads):
+   - **Organization Member** — list orgs, projects, clusters, processes, and metrics
+   - **Organization Billing Viewer** — read invoices for chargeback
+5. After creation, **copy the Client Secret immediately** — Atlas does not show it again. The Client ID stays visible.
+
+**2. Register the credentials in Mikan**
+
+After Mikan is installed and you've logged in:
+
+1. Open **MongoDB > Organizations** in the sidebar.
+2. Add an entry with the **Organization ID**, **Client ID**, and **Client Secret** from step 1.
+3. Repeat for each Atlas organization.
+
+Mikan encrypts the Client ID / Client Secret with the deployment's `ENCRYPTION_KEY` before storing them — the same caveat as Confluent applies: losing the encryption key makes the stored credentials unrecoverable.
+
+**3. Enable the Atlas integration**
+
+The Atlas feature is gated by a system setting (`mongodb_atlas.enabled`) that ships as `false`. Until you flip it, the MongoDB sidebar entries stay hidden and Atlas sync jobs are skipped. Two ways to enable it:
+
+- **During install:** the installer asks whether to enable Atlas, and writes the setting on your behalf when you say yes.
+- **Later, via the API:** log in, grab a session token, and POST the GraphQL mutation below:
+  ```bash
+  curl -sf http://localhost:3333/graphql \
+    -X POST \
+    -H "Authorization: Bearer <SESSION_TOKEN>" \
+    -H "Content-Type: application/json" \
+    -d '{"query":"mutation { updateSystemSetting(key:\"mongodb_atlas.enabled\", value:\"true\") { key value } }"}'
+  ```
+  Refresh the UI after toggling.
+
+To disable later, run the same mutation with `value:"false"`.
+
 ### ECR Access Token
 
 Mikan's container images live in a private AWS ECR registry. The installer prompts for an ECR token that authenticates `docker pull`. The token is **short-lived (~12 hours)** — AWS expires it automatically. Request a fresh token from the Mikan team (`mikan@goodlabs.studio`) whenever you:
@@ -90,6 +139,7 @@ Mikan makes outbound HTTPS calls to several Confluent endpoints. If the host run
 | `api.telemetry.confluent.cloud` | Telemetry API — per-topic usage metrics |
 | `pkc-*.<region>.<cloud>.confluent.cloud` | Per-cluster Kafka REST endpoints — topics, ACLs, consumer groups (exact subdomain varies per cluster) |
 | `psrc-*.<region>.<cloud>.confluent.cloud` | Per-environment Schema Registry endpoints — Catalog reads (only if auto-mapping is enabled) |
+| `cloud.mongodb.com` | MongoDB Atlas OAuth token endpoint and Atlas Admin API (`/api/atlas/v2/*`) — only if the Atlas integration is enabled |
 
 Add wildcard rules for `*.confluent.cloud` if your firewall does not allow per-subdomain entries.
 

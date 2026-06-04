@@ -101,38 +101,13 @@ Full step-by-step instructions live in the [top-level Confluent Cloud API Creden
 
 `CloudClusterAdmin` and `EnvironmentAdmin` are wider than what Mikan requires and should not be used — Mikan never writes to Confluent.
 
-### Obtaining MongoDB Atlas API Credentials
+### Obtaining MongoDB Atlas API Credentials (optional)
 
-To collect billing data from MongoDB Atlas, you need to create API credentials for each organization.
+Skip this section if you do not run MongoDB Atlas. Atlas integration is disabled by default. The full setup walkthrough lives in the [top-level MongoDB Atlas API Credentials guide](../README.md#mongodb-atlas-api-credentials-optional); the short version:
 
-#### Step 1: Get Organization ID
-
-1. Go to [cloud.mongodb.com](https://cloud.mongodb.com)
-2. Select your organization from the organization selector
-3. The Organization ID is in the URL after `/org/`:
-   ```
-   https://cloud.mongodb.com/v2#/org/67c9cffa530932749e175023/projects
-                                    └─────────────────────────┘
-                                         Organization ID
-   ```
-
-#### Step 2: Create Service Account
-
-1. After selecting the organization, navigate to **Access Manager** > **Applications**
-2. Click **Create Service Account**
-3. Enter a name for the service account (e.g., `mikan-billing`)
-4. Add the **Organization Billing Viewer**, **Organization Member** permission
-5. Click **Create**
-
-#### Step 3: Generate API Credentials
-
-1. After creating the service account, you'll see the **Client ID** and **Client Secret**
-2. **Important:** Copy the Client Secret immediately - it won't be shown again
-3. Register these credentials in the Mikan app:
-   - Go to **MongoDB** > **Organizations** page
-   - Add your organization with the Client ID and Client Secret
-
-**Note:** Repeat these steps for each MongoDB Atlas organization you want to collect billing data from.
+1. In each Atlas organization, create a Service Account under **Access Manager > Applications** and grant it **Organization Member** + **Organization Billing Viewer**. Copy the **Client ID** and **Client Secret** (the secret is shown only once).
+2. After installing Mikan, log in and register the Organization ID, Client ID, and Client Secret in **MongoDB > Organizations** for each Atlas org.
+3. Enable the integration by saying yes to the installer's "Enable MongoDB Atlas?" prompt, or by toggling `mongodb_atlas.enabled = 'true'` via the GraphQL `updateSystemSetting` mutation after install.
 
 ## Running Services
 
