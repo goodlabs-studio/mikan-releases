@@ -109,6 +109,16 @@ Skip this section if you do not run MongoDB Atlas. Atlas integration is disabled
 2. After installing Mikan, log in and register the Organization ID, Client ID, and Client Secret in **MongoDB > Organizations** for each Atlas org.
 3. Enable the integration by saying yes to the installer's "Enable MongoDB Atlas?" prompt, or by toggling `mongodb_atlas.enabled = 'true'` via the GraphQL `updateSystemSetting` mutation after install.
 
+### Obtaining Azure Databricks Credentials (optional)
+
+Skip this section if you don't run Databricks on Azure. The integration **requires Unity Catalog** — there's no fallback path. The full guide lives at [Azure Databricks Credentials](../README.md#azure-databricks-credentials-optional); the short version:
+
+1. Create an Azure AD Service Principal and copy its **Tenant ID**, **Application (Client) ID**, and **Client Secret**.
+2. On each subscription with Databricks workspaces, grant the SP **Reader** + **Cost Management Reader**.
+3. On each workspace: add the SP under **Settings > Identity and access > Service principals** with the **User** entitlement, give it **Can use** on a SQL warehouse, enable the metastore's `system.billing` schema, and grant `USE CATALOG system` / `USE SCHEMA system.billing` / `SELECT` on `system.billing.usage` + `system.billing.list_prices`.
+4. Set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET` in the deployment env (the installer prompts for these).
+5. Enable the integration: say yes to the installer's "Enable Databricks integration?" prompt, or toggle `databricks.enabled = 'true'` via `updateSystemSetting` after install.
+
 ## Running Services
 
 See [Quick Start](#quick-start) for initial setup. After configuration:

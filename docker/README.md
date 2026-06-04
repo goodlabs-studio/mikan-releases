@@ -165,6 +165,16 @@ Atlas integration is off by default. To turn it on:
 
 Without step 2 the MongoDB pages in the sidebar stay hidden even if credentials are registered.
 
+### Azure Databricks (optional)
+
+Databricks integration is off by default and **requires Unity Catalog**. To turn it on:
+
+1. Follow the [top-level Azure Databricks credentials guide](../README.md#azure-databricks-credentials-optional) to create the Azure Service Principal, assign subscription roles, and grant the Unity Catalog `system.billing` access the SP needs.
+2. Provide `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET` (the installer prompts for them; you can also edit `.env` afterwards).
+3. Either say **yes** to the installer's Databricks prompt, or set `databricks.enabled = 'true'` via the GraphQL `updateSystemSetting` mutation after install.
+
+Workspaces are auto-discovered once enabled — no per-workspace registration in the UI.
+
 ---
 
 ## Access the Application

@@ -119,6 +119,77 @@ The Atlas feature is gated by a system setting (`mongodb_atlas.enabled`) that sh
 
 To disable later, run the same mutation with `value:"false"`.
 
+### Azure Databricks Credentials (optional)
+
+Skip this section if you do not run Databricks on Azure. The integration is **disabled by default** and requires Unity Catalog — there is no fallback path.
+
+Unlike the Confluent and MongoDB Atlas integrations, Databricks credentials are **global**: a single Azure Service Principal is shared across every subscription and workspace Mikan reads. Workspaces themselves are discovered automatically once the SP has access — you do not register them one-by-one in Mikan.
+
+**1. Create an Azure AD Service Principal**
+
+1. In the Azure portal, go to **Microsoft Entra ID > App registrations > New registration**.
+2. Name it (e.g. `mikan-databricks`) and register.
+3. Open the new app's **Certificates & secrets** page and create a **New client secret**. Copy the value immediately — it is shown only once.
+4. From the app's **Overview** page, copy the **Application (client) ID** and the **Directory (tenant) ID**.
+
+You'll use these as the `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, and `AZURE_TENANT_ID` environment variables below.
+
+**2. Assign Azure subscription roles**
+
+For every subscription that contains Databricks workspaces Mikan should see, grant the Service Principal both of these roles (Subscription scope):
+
+| Role | Purpose |
+| ---- | ------- |
+| `Reader` | List subscriptions, resource groups, and Databricks workspaces |
+| `Cost Management Reader` | Query `Microsoft.CostManagement` for per-resource Azure costs |
+
+These are read-only. Mikan never writes to Azure.
+
+**3. Enable Unity Catalog and grant system schema access (required)**
+
+Mikan derives Databricks chargeback from **Unity Catalog system tables** — there is no alternative. Every workspace you want included needs:
+
+- A **Unity Catalog metastore** attached.
+- The metastore's `system.billing` schema **enabled** (system schemas are off by default). Enable from the Databricks account console under **Account > Settings > Manage account**, or via the Account API:
+  ```bash
+  curl -X PUT \
+    -H "Authorization: Bearer <ACCOUNT_ADMIN_TOKEN>" \
+    "https://accounts.azuredatabricks.net/api/2.0/accounts/<ACCOUNT_ID>/metastores/<METASTORE_ID>/systemschemas/billing"
+  ```
+  Repeat for any other system schema Mikan adds in the future.
+- The Service Principal added to the workspace and granted permissions:
+  1. **Workspace level** (Workspace admin → **Settings > Identity and access > Service principals > Add**): add the SP and grant the **User** entitlement so it can call workspace APIs.
+  2. **SQL warehouse** (a warehouse Mikan can use to execute the billing query): grant the SP **Can use** on a serverless or pro warehouse. Mikan auto-selects one per workspace but you can pin a specific warehouse from the Mikan UI later.
+  3. **Unity Catalog grants** (run in any UC-enabled SQL editor as a metastore admin):
+     ```sql
+     GRANT USE CATALOG ON CATALOG system            TO `<SP application id>`;
+     GRANT USE SCHEMA  ON SCHEMA  system.billing    TO `<SP application id>`;
+     GRANT SELECT      ON TABLE   system.billing.usage       TO `<SP application id>`;
+     GRANT SELECT      ON TABLE   system.billing.list_prices TO `<SP application id>`;
+     ```
+     Use the SP's Application (client) ID as the principal — Databricks resolves it automatically.
+
+Without all of the above, the workspace billing sync fails with `INSUFFICIENT_PERMISSIONS` on `system.billing.usage`.
+
+**4. Set the credentials in `.env`**
+
+```
+AZURE_TENANT_ID=<tenant id>
+AZURE_CLIENT_ID=<application/client id>
+AZURE_CLIENT_SECRET=<client secret>
+```
+
+The installer also prompts for these and writes them into the generated `.env`.
+
+**5. Enable the Databricks integration**
+
+The Databricks feature ships disabled (system_setting `databricks.enabled = 'false'`). Until you turn it on, the Databricks sidebar entries stay hidden and Databricks sync jobs are skipped.
+
+- **During install:** the installer asks whether to enable Databricks, and writes the setting when you say yes.
+- **Later, via the API:** same GraphQL `updateSystemSetting` mutation as MongoDB Atlas, with `key: "databricks.enabled"`.
+
+Once enabled and credentials are present, Mikan discovers subscriptions on its next scheduled run, syncs workspaces, and starts loading billing usage from Unity Catalog.
+
 ### ECR Access Token
 
 Mikan's container images live in a private AWS ECR registry. The installer prompts for an ECR token that authenticates `docker pull`. The token is **short-lived (~12 hours)** — AWS expires it automatically. Request a fresh token from the Mikan team (`mikan@goodlabs.studio`) whenever you:
@@ -140,6 +211,9 @@ Mikan makes outbound HTTPS calls to several Confluent endpoints. If the host run
 | `pkc-*.<region>.<cloud>.confluent.cloud` | Per-cluster Kafka REST endpoints — topics, ACLs, consumer groups (exact subdomain varies per cluster) |
 | `psrc-*.<region>.<cloud>.confluent.cloud` | Per-environment Schema Registry endpoints — Catalog reads (only if auto-mapping is enabled) |
 | `cloud.mongodb.com` | MongoDB Atlas OAuth token endpoint and Atlas Admin API (`/api/atlas/v2/*`) — only if the Atlas integration is enabled |
+| `login.microsoftonline.com` | Azure AD OAuth token endpoint — only if the Azure Databricks integration is enabled |
+| `management.azure.com` | Azure Resource Manager + Cost Management — only if Azure Databricks is enabled |
+| `*.azuredatabricks.net` | Per-workspace Databricks REST API (SQL warehouses, statements, Unity Catalog) — only if Azure Databricks is enabled |
 
 Add wildcard rules for `*.confluent.cloud` if your firewall does not allow per-subdomain entries.
 

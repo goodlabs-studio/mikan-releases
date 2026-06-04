@@ -266,6 +266,33 @@ get_user_input() {
         ENABLE_ATLAS=false
     fi
 
+    # Step 8: Azure Databricks integration (optional)
+    echo ""
+    echo "Step 8: Azure Databricks Integration (Optional)"
+    echo ""
+    echo "  Databricks integration requires Unity Catalog. Provide the Azure"
+    echo "  Service Principal credentials below to enable it, or press Enter"
+    echo "  to skip and set them later in .env. See the top-level README for"
+    echo "  the required subscription roles and Unity Catalog grants."
+    echo ""
+    read -p "  Enter AZURE_TENANT_ID [skip]: " AZURE_TENANT_ID
+    read -p "  Enter AZURE_CLIENT_ID [skip]: " AZURE_CLIENT_ID
+    read -p "  Enter AZURE_CLIENT_SECRET [skip]: " AZURE_CLIENT_SECRET
+    if [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ]; then
+        echo ""
+        read -p "  Enable Databricks integration now? [y/N]: " USER_ENABLE_DATABRICKS
+        if [[ "$USER_ENABLE_DATABRICKS" =~ ^[Yy]$ ]]; then
+            ENABLE_DATABRICKS=true
+        else
+            ENABLE_DATABRICKS=false
+        fi
+    else
+        ENABLE_DATABRICKS=false
+        if [ -n "$AZURE_TENANT_ID$AZURE_CLIENT_ID$AZURE_CLIENT_SECRET" ]; then
+            print_warn "Skipping Databricks setup — all three Azure values are required."
+        fi
+    fi
+
     echo ""
 }
 
@@ -316,6 +343,13 @@ CORS_ALLOWED_ORIGINS=http://localhost:${APP_PORT}
 # -----------------
 CONFLUENT_MANAGEMENT_API_KEY=${CONFLUENT_KEY}
 CONFLUENT_MANAGEMENT_API_SECRET=${CONFLUENT_SECRET}
+
+# -----------------
+# Azure Databricks (optional)
+# -----------------
+AZURE_TENANT_ID=${AZURE_TENANT_ID}
+AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
 
 # -----------------
 # Encryption
@@ -530,37 +564,53 @@ start_services() {
     fi
 }
 
-enable_mongodb_atlas_setting() {
-    # Flip the feature-flag row in system_setting once the database is up.
-    # Done as a separate step (not via env) because the toggle lives in DB.
-    if [ "$ENABLE_ATLAS" != "true" ]; then
-        return 0
-    fi
-
-    echo ""
-    echo "Enabling MongoDB Atlas integration..."
-
+_wait_for_database_ready() {
     # Wait for Postgres to accept connections inside the database container.
     local attempts=0
     while ! docker compose exec -T database pg_isready -U postgres > /dev/null 2>&1; do
         attempts=$((attempts + 1))
         if [ $attempts -gt 30 ]; then
-            print_warn "Database not ready after 60s. Skipping Atlas toggle — you can enable it later via:"
-            echo "  docker compose exec database psql -U postgres -d mikan -c \"UPDATE system_setting SET value='true' WHERE key='mongodb_atlas.enabled';\""
-            return 0
+            return 1
         fi
         sleep 2
     done
+    return 0
+}
 
-    # The row is seeded by migration 1808; flip its value in place.
-    if docker compose exec -T database psql -U postgres -d mikan \
-        -c "UPDATE system_setting SET value = 'true', \"updatedAt\" = NOW() WHERE key = 'mongodb_atlas.enabled';" \
-        > /dev/null 2>&1; then
-        print_ok "MongoDB Atlas integration enabled (system_setting mongodb_atlas.enabled = 'true')"
-    else
-        print_warn "Could not update mongodb_atlas.enabled. Run this manually after install:"
-        echo "  docker compose exec database psql -U postgres -d mikan -c \"UPDATE system_setting SET value='true' WHERE key='mongodb_atlas.enabled';\""
+_toggle_system_setting() {
+    local key="$1"
+    local label="$2"
+    if ! _wait_for_database_ready; then
+        print_warn "Database not ready after 60s. Skipping $label toggle — you can enable it later via:"
+        echo "  docker compose exec database psql -U postgres -d mikan -c \"UPDATE system_setting SET value='true' WHERE key='$key';\""
+        return 0
     fi
+    if docker compose exec -T database psql -U postgres -d mikan \
+        -c "UPDATE system_setting SET value = 'true', \"updatedAt\" = NOW() WHERE key = '$key';" \
+        > /dev/null 2>&1; then
+        print_ok "$label enabled (system_setting $key = 'true')"
+    else
+        print_warn "Could not update $key. Run this manually after install:"
+        echo "  docker compose exec database psql -U postgres -d mikan -c \"UPDATE system_setting SET value='true' WHERE key='$key';\""
+    fi
+}
+
+enable_mongodb_atlas_setting() {
+    if [ "$ENABLE_ATLAS" != "true" ]; then
+        return 0
+    fi
+    echo ""
+    echo "Enabling MongoDB Atlas integration..."
+    _toggle_system_setting "mongodb_atlas.enabled" "MongoDB Atlas integration"
+}
+
+enable_databricks_setting() {
+    if [ "$ENABLE_DATABRICKS" != "true" ]; then
+        return 0
+    fi
+    echo ""
+    echo "Enabling Databricks integration..."
+    _toggle_system_setting "databricks.enabled" "Databricks integration"
 }
 
 print_completion() {
@@ -599,6 +649,17 @@ print_completion() {
         echo "        -c \"UPDATE system_setting SET value='true' WHERE key='mongodb_atlas.enabled';\""
         echo "    then register Atlas credentials under 'MongoDB > Organizations'."
     fi
+    if [ "$ENABLE_DATABRICKS" = "true" ]; then
+        echo "  - Confirm the Azure SP has Reader + Cost Management Reader on each subscription"
+        echo "    and Unity Catalog grants (USE CATALOG system, USE SCHEMA system.billing,"
+        echo "    SELECT on system.billing.usage + system.billing.list_prices)."
+        echo "  - Workspaces are discovered automatically on the next scheduled run."
+        echo "    Assign them to cost centers under 'Databricks > Workspaces'."
+    elif [ -n "$AZURE_TENANT_ID" ]; then
+        echo "  - Azure credentials are set but Databricks is still disabled. Enable later via:"
+        echo "      docker compose exec database psql -U postgres -d mikan \\"
+        echo "        -c \"UPDATE system_setting SET value='true' WHERE key='databricks.enabled';\""
+    fi
     echo ""
     echo "For full role / credential setup details, see:"
     echo "  https://github.com/goodlabs-studio/mikan-releases/blob/main/README.md"
@@ -615,6 +676,7 @@ main() {
     create_env_file
     start_services
     enable_mongodb_atlas_setting
+    enable_databricks_setting
     print_completion
 }
 
