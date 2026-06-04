@@ -38,7 +38,7 @@ vi .env  # Edit required variables (see table below)
 | `IMAGE_TAG`                       | Docker image tag (staging/latest) | No       |
 
 - **ENCRYPTION_KEY**: A 32-character random string to encrypt API credentials in database
-- **CONFLUENT_MANAGEMENT_API_KEY/SECRET**: Create a service account in Confluent Cloud with EnvironmentAdmin and BillingAdmin permissions
+- **CONFLUENT_MANAGEMENT_API_KEY/SECRET**: Create a service account in Confluent Cloud with `BillingAdmin` + `MetricsViewer` at org scope, plus `Operator` on each environment. See [Confluent Cloud API Credentials](../README.md#confluent-cloud-api-credentials) for full role details.
 
 ### 3. Start Services
 
@@ -115,15 +115,17 @@ See [Quick Start](#quick-start) section above for required variables. Additional
 
 ### Obtaining Confluent Cloud Credentials
 
-To get `CONFLUENT_MANAGEMENT_API_KEY` and `CONFLUENT_MANAGEMENT_API_SECRET`:
+Full step-by-step instructions live in the [top-level Confluent Cloud API Credentials guide](../README.md#confluent-cloud-api-credentials). The short version, for the credentials that go into the deployment:
 
-1. Create a service account in Confluent Cloud with:
-   - EnvironmentAdmin permission for each environment resource you want to access
-   - BillingAdmin permission for the organization
-   - CloudClusterAdmin permission for each cluster you want to collect chargeback data from
-2. Generate an API key and secret for this service account with Cloud resource management scope
-3. Use the generated key and secret as `CONFLUENT_MANAGEMENT_API_KEY` and `CONFLUENT_MANAGEMENT_API_SECRET`
-4. For each cluster, generate an API key with Kafka cluster resource scope. Save these credentials and register them in the Mikan app's API Keys page
+1. Create a single service account (e.g. `mikan`) in Confluent Cloud and assign these read-only roles:
+   - **Organization scope:** `BillingAdmin` + `MetricsViewer`
+   - **Each environment:** `Operator` (cascades to every cluster in the env)
+   - **Each environment's Schema Registry cluster:** `DataDiscoveryRead` (only if you plan to use topic auto-mapping via Business Metadata / Tags)
+2. From **Administration > API keys**, create a **Cloud resource management** key owned by that service account. Use it as `CONFLUENT_MANAGEMENT_API_KEY` and `CONFLUENT_MANAGEMENT_API_SECRET`.
+3. For each Kafka cluster, create a **Kafka cluster** API key owned by the same service account. After installation, register each key/secret in the Mikan UI at **API Keys**.
+4. (Optional, for auto-mapping) For each environment, create a **Schema Registry** API key owned by the same service account. Register each in the Mikan UI at **Schema Registry API Keys**.
+
+`CloudClusterAdmin` and `EnvironmentAdmin` are wider than what Mikan requires and should not be used — Mikan never writes to Confluent.
 
 ## Running Services
 
@@ -141,10 +143,17 @@ docker compose up -d database api app
 
 | Service    | Container Name | Port | Description              |
 | ---------- | -------------- | ---- | ------------------------ |
-| `database` | mikan-database | 5432 | PostgreSQL database      |
+| `database` | mikan-database | 5432 (host port configurable via `POSTGRES_HOST_PORT`) | PostgreSQL database |
 | `api`      | mikan-api      | 3333 | Backend API server       |
 | `app`      | mikan-app      | 3000 | Frontend web application |
-| `cron`     | mikan-cron     | -    | Scheduled task runner    |
+| `cron`     | mikan-cron     | -    | Background worker (see below) |
+
+**About the `cron` service.** The cron container is a long-running worker that the API delegates scheduled work to — most importantly, periodic Kafka consumer-offset collection (via the bundled `kafka-consumer-groups` CLI) and any other tasks the API queues onto it. It does not run scheduled jobs by itself; the API still drives the schedule. You can run Mikan without it:
+
+- Skip it at install time when prompted, or
+- Start the stack with `docker compose up -d database api app` after install.
+
+If `cron` is not running, **consumer-offset metrics will not refresh** and any other features that depend on the worker (currently scoped to offsets) will be unavailable. Everything else — chargeback, billing, topic sync, auto-mapping, metrics — runs from the `api` container and is unaffected.
 
 ---
 
@@ -153,9 +162,10 @@ docker compose up -d database api app
 After starting the services:
 
 1. Open your browser and go to `http://localhost:3000`
-2. Login with default admin credentials:
+2. Login with the default admin credentials:
    - **Email:** `admin@mikan.local`
    - **Password:** `Admin123!`
+3. Mikan immediately prompts you to set a new password — the default credentials become invalid after this change. Pick a strong password and store it in your password manager.
 3. You will be prompted to change the password on first login
 
 ---

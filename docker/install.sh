@@ -151,19 +151,35 @@ get_user_input() {
     echo "  4. Enter name (e.g., 'mikan') and description, click 'Next'"
     echo ""
     echo "  [Assign Permissions - click 'Add role assignment' for each]"
-    echo "  5. Select Organization > Role: BillingAdmin"
-    echo "  6. For each cluster: Select Cluster > Role: CloudClusterAdmin"
-    echo "  7. Click 'Review and create' - verify Access looks like:"
-    echo "       BillingAdmin        -> Your Organization"
-    echo "       CloudClusterAdmin   -> cluster-1 (lkc-xxxxx)"
-    echo "       CloudClusterAdmin   -> cluster-2 (lkc-xxxxx)"
-    echo "  8. Click 'Create'"
+    echo "  Mikan only reads from Confluent — use the minimum read-only roles below."
+    echo "  5. Organization > Role: BillingAdmin"
+    echo "  6. Organization > Role: MetricsViewer"
+    echo "  7. For each environment: Role: Operator"
+    echo "     (Operator at env scope cascades to every cluster in it.)"
+    echo "  8. (Optional, for topic auto-mapping) For each environment's"
+    echo "     Schema Registry cluster: Role: DataDiscoveryRead"
+    echo "  9. Click 'Review and create' - verify Access looks like:"
+    echo "       BillingAdmin       -> Your Organization"
+    echo "       MetricsViewer      -> Your Organization"
+    echo "       Operator           -> env-prod  (cascades to its clusters)"
+    echo "       Operator           -> env-staging"
+    echo "       DataDiscoveryRead  -> Schema Registry of each env  (optional)"
+    echo "  10. Click 'Create'"
     echo ""
-    echo "  [Create API Key]"
-    echo "  9. Navigate to: Administration > API keys"
-    echo "  10. Click 'Add API key' > Select the service account created above"
-    echo "  11. Set scope to 'Cloud resource management'"
-    echo "  12. Copy the generated Key and Secret"
+    echo "  Note: CloudClusterAdmin and EnvironmentAdmin are wider than"
+    echo "  Mikan needs and should not be used."
+    echo ""
+    echo "  [Create the Cloud API Key]"
+    echo "  11. Navigate to: Administration > API keys"
+    echo "  12. Click 'Add API key' > Select the service account created above"
+    echo "  13. Set scope to 'Cloud resource management'"
+    echo "  14. Copy the generated Key and Secret"
+    echo ""
+    echo "  After install completes, also create one Kafka cluster API key"
+    echo "  per cluster (owned by the same service account) and register"
+    echo "  them in the Mikan UI under 'API Keys'. If you enabled"
+    echo "  DataDiscoveryRead above, also create one Schema Registry API key"
+    echo "  per environment and register under 'Schema Registry API Keys'."
     echo ""
 
     # Confluent API Key
@@ -197,10 +213,24 @@ get_user_input() {
     echo ""
     read -p "  Enter API port [default: 3333]: " USER_API_PORT
     read -p "  Enter App port [default: 3000]: " USER_APP_PORT
+    echo "  Postgres host port — change if 5432 is already in use on this host."
+    read -p "  Enter Postgres host port [default: 5432]: " USER_POSTGRES_HOST_PORT
 
     # Set defaults if not provided
     API_PORT="${USER_API_PORT:-3333}"
     APP_PORT="${USER_APP_PORT:-3000}"
+    POSTGRES_HOST_PORT="${USER_POSTGRES_HOST_PORT:-5432}"
+
+    # Step 4b: Postgres credentials
+    echo ""
+    echo "Step 4b: Postgres Password"
+    echo ""
+    echo "  Password for the bundled Postgres user. Leave blank to keep the"
+    echo "  default ('postgres') — recommended only for short-lived test"
+    echo "  installs. Set a strong password for any deployment that may be"
+    echo "  reachable from outside this host."
+    read -p "  Enter POSTGRES_PASSWORD [default: postgres]: " USER_POSTGRES_PASSWORD
+    POSTGRES_PASSWORD="${USER_POSTGRES_PASSWORD:-postgres}"
 
     # Step 5: Service Selection
     echo ""
@@ -253,8 +283,9 @@ IMAGE_TAG=latest
 # Database Settings
 # -----------------
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 POSTGRES_DB=mikan
+POSTGRES_HOST_PORT=${POSTGRES_HOST_PORT}
 DATABASE_SSL=false
 
 # -----------------

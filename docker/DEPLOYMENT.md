@@ -89,15 +89,17 @@ See [Quick Start](#quick-start) section above for required variables. Additional
 
 ### Obtaining Confluent Cloud Credentials
 
-To get `CONFLUENT_MANAGEMENT_API_KEY` and `CONFLUENT_MANAGEMENT_API_SECRET`:
+Full step-by-step instructions live in the [top-level Confluent Cloud API Credentials guide](../README.md#confluent-cloud-api-credentials). The short version, for the credentials that go into the deployment:
 
-1. Create a service account in Confluent Cloud with:
-   - EnvironmentAdmin permission for each environment resource you want to access
-   - BillingAdmin permission for the organization
-   - CloudClusterAdmin permission for each cluster you want to collect chargeback data from
-2. Generate an API key and secret for this service account with Cloud resource management scope
-3. Use the generated key and secret as `CONFLUENT_MANAGEMENT_API_KEY` and `CONFLUENT_MANAGEMENT_API_SECRET`
-4. For each cluster, generate an API key with Kafka cluster resource scope. Save these credentials and register them in the Mikan app's API Keys page
+1. Create a single service account (e.g. `mikan`) in Confluent Cloud and assign these read-only roles:
+   - **Organization scope:** `BillingAdmin` + `MetricsViewer`
+   - **Each environment:** `Operator` (cascades to every cluster in the env)
+   - **Each environment's Schema Registry cluster:** `DataDiscoveryRead` (only if you plan to use topic auto-mapping via Business Metadata / Tags)
+2. From **Administration > API keys**, create a **Cloud resource management** key owned by that service account. Use it as `CONFLUENT_MANAGEMENT_API_KEY` and `CONFLUENT_MANAGEMENT_API_SECRET`.
+3. For each Kafka cluster, create a **Kafka cluster** API key owned by the same service account. After installation, register each key/secret in the Mikan UI at **API Keys**.
+4. (Optional, for auto-mapping) For each environment, create a **Schema Registry** API key owned by the same service account. Register each in the Mikan UI at **Schema Registry API Keys**.
+
+`CloudClusterAdmin` and `EnvironmentAdmin` are wider than what Mikan requires and should not be used — Mikan never writes to Confluent.
 
 ### Obtaining MongoDB Atlas API Credentials
 
