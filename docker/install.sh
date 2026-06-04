@@ -166,9 +166,6 @@ get_user_input() {
     echo "       DataDiscoveryRead  -> Schema Registry of each env  (optional)"
     echo "  10. Click 'Create'"
     echo ""
-    echo "  Note: CloudClusterAdmin and EnvironmentAdmin are wider than"
-    echo "  Mikan needs and should not be used."
-    echo ""
     echo "  [Create the Cloud API Key]"
     echo "  11. Navigate to: Administration > API keys"
     echo "  12. Click 'Add API key' > Select the service account created above"
@@ -360,7 +357,10 @@ ENCRYPTION_KEY=${ENCRYPTION_KEY}
 # Frontend App
 # -----------------
 APP_PORT=${APP_PORT}
-REACT_APP_API_URL=http://localhost:${API_PORT}
+# The web container's entrypoint substitutes __VITE_API_URL_PLACEHOLDER__
+# in the built JS bundle with this value at startup. Apollo needs the
+# full GraphQL URL (including /graphql).
+VITE_API_URL=http://localhost:${API_PORT}/graphql
 
 # -----------------
 # Data Storage
@@ -526,6 +526,30 @@ docker_login() {
     done
 }
 
+_dump_failure_logs() {
+    # Surface enough context that the operator doesn't have to dig.
+    echo ""
+    echo "-----------------------------------------"
+    echo "Container status:"
+    docker compose ps
+    echo ""
+    # Show recent logs for every container that isn't running healthy.
+    local containers
+    containers=$(docker compose ps --format '{{.Service}}\t{{.State}}' | awk -F'\t' '$2 != "running" {print $1}')
+    if [ -z "$containers" ]; then
+        # Healthcheck failures can leave the container "running" but unhealthy
+        # — fall back to dumping the API which is the usual culprit.
+        containers=$(docker compose ps --format '{{.Service}}' | head -10)
+    fi
+    for svc in $containers; do
+        echo "-----------------------------------------"
+        echo "Last 60 lines of logs for '$svc':"
+        docker compose logs --tail 60 "$svc" 2>&1 || true
+    done
+    echo "-----------------------------------------"
+    echo "For full logs: docker compose logs <service>"
+}
+
 start_services() {
     local services="${SELECTED_SERVICES[*]}"
 
@@ -546,6 +570,7 @@ start_services() {
     if ! docker compose up -d $services; then
         echo ""
         print_error "Failed to start services."
+        _dump_failure_logs
         exit 1
     fi
     echo ""
@@ -556,11 +581,14 @@ start_services() {
     echo "Waiting for services to be ready..."
     sleep 10
 
-    # Check service health
-    if docker compose ps | grep -q "running"; then
+    # Check service health — dump logs from anything that isn't running.
+    local unhealthy
+    unhealthy=$(docker compose ps --format '{{.Service}}\t{{.State}}' | awk -F'\t' '$2 != "running" {print $1}')
+    if [ -z "$unhealthy" ]; then
         print_ok "All services are running"
     else
-        print_warn "Some services may not be running. Check with: docker compose ps"
+        print_warn "Some services are not running: $unhealthy"
+        _dump_failure_logs
     fi
 }
 

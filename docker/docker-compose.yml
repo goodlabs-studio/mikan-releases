@@ -72,7 +72,10 @@ services:
     restart: always
     platform: ${PLATFORM:-linux/amd64}
     environment:
-      - REACT_APP_API_URL=${REACT_APP_API_URL}
+      # The web image's entrypoint substitutes __VITE_API_URL_PLACEHOLDER__
+      # in the built bundle with this value at container start. Apollo
+      # expects the full GraphQL URL (including /graphql).
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:3333/graphql}
     depends_on:
       - api
     ports:
